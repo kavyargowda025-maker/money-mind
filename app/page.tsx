@@ -25,8 +25,8 @@ export default function OverviewPage() {
       </div>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Metric label="Total balance" value="$0.00" detail="Add a transaction to get started" />
-        <Metric label="Monthly spending" value="$0.00" detail="No spending recorded" />
+        <Metric label="Total balance" value="₹0.00" detail="Add a transaction to get started" />
+        <Metric label="Monthly spending" value="₹0.00" detail="No spending recorded" />
         <Metric label="Savings rate" value="0%" detail="No income recorded" />
       </section>
 
