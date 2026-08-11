@@ -11,17 +11,22 @@ const globalForPrisma = globalThis as unknown as {
   pool?: Pool
 }
 
-// Managed Pool singleton with explicit connection limits
+// Managed Pool singleton with explicit connection limits & keepalive
 const pool =
   globalForPrisma.pool ??
   new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
     max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 30000,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000,
     keepAlive: true,
   })
+
+// Evict dead idle clients from the pool automatically on network drop
+pool.on('error', (err) => {
+  console.error('[pg pool] Idle client socket error:', err.message || err)
+})
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.pool = pool
@@ -33,4 +38,28 @@ export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter })
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db
+}
+
+/**
+ * Utility to execute DB operations with automatic single-retry on transient pool/socket timeouts.
+ */
+export async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  let lastError: any
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn()
+    } catch (err: any) {
+      lastError = err
+      const isTimeout =
+        err?.message?.includes('timed out') ||
+        err?.message?.includes('timeout') ||
+        err?.message?.includes('Connection terminated')
+      if (!isTimeout || attempt === retries - 1) {
+        throw err
+      }
+      console.warn(`[DB Retry] Transient timeout on attempt ${attempt + 1}. Retrying query...`)
+      await new Promise((r) => setTimeout(r, 200))
+    }
+  }
+  throw lastError
 }

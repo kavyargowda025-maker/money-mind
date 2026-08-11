@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-user'
-import { db } from '@/lib/db'
+import { db, withRetry } from '@/lib/db'
 
 export async function GET() {
   try {
@@ -14,19 +14,23 @@ export async function GET() {
       })
     }
 
-    let settings = await db.userSettings.findUnique({
-      where: { userId: user.id },
-    })
+    let settings = await withRetry(() =>
+      db.userSettings.findUnique({
+        where: { userId: user.id },
+      })
+    )
 
     if (!settings) {
-      settings = await db.userSettings.create({
-        data: {
-          userId: user.id,
-          currency: '₹',
-          monthlyBudget: 50000,
-          theme: 'light',
-        },
-      })
+      settings = await withRetry(() =>
+        db.userSettings.create({
+          data: {
+            userId: user.id,
+            currency: '₹',
+            monthlyBudget: 50000,
+            theme: 'light',
+          },
+        })
+      )
     }
 
     return NextResponse.json({ user, settings })
@@ -48,25 +52,29 @@ export async function POST(req: NextRequest) {
     // Execute user name update and settings upsert concurrently
     const [updatedUser, settings] = await Promise.all([
       name
-        ? db.user.update({
-            where: { id: user.id },
-            data: { name },
-          })
+        ? withRetry(() =>
+            db.user.update({
+              where: { id: user.id },
+              data: { name },
+            })
+          )
         : Promise.resolve(user),
-      db.userSettings.upsert({
-        where: { userId: user.id },
-        update: {
-          currency: currency !== undefined ? currency : undefined,
-          monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : undefined,
-          theme: theme || undefined,
-        },
-        create: {
-          userId: user.id,
-          currency: currency || '₹',
-          monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : 50000,
-          theme: theme || 'light',
-        },
-      }),
+      withRetry(() =>
+        db.userSettings.upsert({
+          where: { userId: user.id },
+          update: {
+            currency: currency !== undefined ? currency : undefined,
+            monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : undefined,
+            theme: theme || undefined,
+          },
+          create: {
+            userId: user.id,
+            currency: currency || '₹',
+            monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : 50000,
+            theme: theme || 'light',
+          },
+        })
+      ),
     ])
 
     return NextResponse.json({ user: updatedUser, settings })

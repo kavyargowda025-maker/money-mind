@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
-import { db } from '@/lib/db'
+import { db, withRetry } from '@/lib/db'
 
 import { cache } from 'react'
 
@@ -29,27 +29,30 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
       } = await supabase.auth.getUser()
 
       if (supabaseUser && supabaseUser.email) {
-        const dbUser = await db.user.upsert({
-          where: { id: supabaseUser.id },
-          update: {},
-          create: {
-            id: supabaseUser.id,
-            email: supabaseUser.email,
-            name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
-            settings: {
-              create: {
-                currency: '₹',
-                monthlyBudget: 50000,
-                theme: 'light',
+        const userEmail = supabaseUser.email
+        const dbUser = await withRetry(() =>
+          db.user.upsert({
+            where: { id: supabaseUser.id },
+            update: {},
+            create: {
+              id: supabaseUser.id,
+              email: userEmail,
+              name: supabaseUser.user_metadata?.full_name || userEmail.split('@')[0],
+              settings: {
+                create: {
+                  currency: '₹',
+                  monthlyBudget: 50000,
+                  theme: 'light',
+                },
               },
             },
-          },
-        })
+          })
+        )
 
         return {
           id: dbUser.id,
           email: dbUser.email,
-          name: dbUser.name || dbUser.email.split('@')[0],
+          name: dbUser.name || userEmail.split('@')[0],
         }
       }
     } catch (e) {
@@ -59,9 +62,11 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
 
   // 2. Try active Demo Cookie session
   if (demoCookie) {
-    const existingDemoUser = await db.user.findUnique({
-      where: { id: demoCookie },
-    })
+    const existingDemoUser = await withRetry(() =>
+      db.user.findUnique({
+        where: { id: demoCookie },
+      })
+    )
 
     if (existingDemoUser) {
       return {
@@ -76,9 +81,11 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
   const fallbackId = demoCookie || 'default-guest-session'
   const fallbackEmail = demoCookie ? `${demoCookie}@moneymind.app` : 'guest@moneymind.app'
 
-  const existingFallbackUser = await db.user.findUnique({
-    where: { id: fallbackId },
-  })
+  const existingFallbackUser = await withRetry(() =>
+    db.user.findUnique({
+      where: { id: fallbackId },
+    })
+  )
 
   if (existingFallbackUser) {
     return {
@@ -88,22 +95,24 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
     }
   }
 
-  const guestUser = await db.user.upsert({
-    where: { id: fallbackId },
-    update: {},
-    create: {
-      id: fallbackId,
-      email: fallbackEmail,
-      name: 'Jordan Miller',
-      settings: {
-        create: {
-          currency: '₹',
-          monthlyBudget: 50000,
-          theme: 'light',
+  const guestUser = await withRetry(() =>
+    db.user.upsert({
+      where: { id: fallbackId },
+      update: {},
+      create: {
+        id: fallbackId,
+        email: fallbackEmail,
+        name: 'Jordan Miller',
+        settings: {
+          create: {
+            currency: '₹',
+            monthlyBudget: 50000,
+            theme: 'light',
+          },
         },
       },
-    },
-  })
+    })
+  )
 
   // Set cookie for session persistence
   try {
