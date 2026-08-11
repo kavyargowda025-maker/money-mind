@@ -5,6 +5,15 @@ import { db } from '@/lib/db'
 export async function GET() {
   try {
     const user = await getCurrentUser()
+
+    if (!user) {
+      return NextResponse.json({
+        user: null,
+        settings: { currency: '₹', monthlyBudget: 50000, theme: 'light' },
+        unauthenticated: true,
+      })
+    }
+
     let settings = await db.userSettings.findUnique({
       where: { userId: user.id },
     })
@@ -30,9 +39,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const { currency, monthlyBudget, theme, name } = await req.json()
 
-    // Execute user update & settings upsert concurrently for maximum speed
+    // Execute user name update and settings upsert concurrently
     const [updatedUser, settings] = await Promise.all([
       name
         ? db.user.update({

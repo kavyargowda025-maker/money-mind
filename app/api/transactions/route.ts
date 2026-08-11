@@ -5,6 +5,11 @@ import { db } from '@/lib/db'
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+
+    if (!user) {
+      return NextResponse.json({ transactions: [], unauthenticated: true })
+    }
+
     const { searchParams } = new URL(req.url)
     const query = searchParams.get('q') || ''
     const category = searchParams.get('category') || ''
@@ -33,17 +38,23 @@ export async function GET(req: NextRequest) {
     const transactions = await db.transaction.findMany({
       where: whereClause,
       orderBy: { date: 'desc' },
+      take: 100,
     })
 
     return NextResponse.json({ transactions })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API GET /transactions error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to fetch transactions' }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { title, amount, type, category, date, description } = body
 
@@ -65,13 +76,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ transaction }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API POST /transactions error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to save transaction' }, { status: 500 })
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
@@ -88,6 +104,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API DELETE /transactions error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to delete transaction' }, { status: 500 })
   }
 }

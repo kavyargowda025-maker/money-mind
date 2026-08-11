@@ -5,6 +5,10 @@ import { db } from '@/lib/db'
 export async function GET() {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ goals: [], unauthenticated: true })
+    }
+
     const goals = await db.goal.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -12,13 +16,18 @@ export async function GET() {
 
     return NextResponse.json({ goals })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API GET /goals error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to fetch goals' }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const { title, targetAmount, currentAmount, deadline, color } = await req.json()
 
     if (!title || !targetAmount) {
@@ -38,13 +47,18 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ goal }, { status: 201 })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API POST /goals error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to create goal' }, { status: 500 })
   }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const { id, depositAmount } = await req.json()
 
     if (!id || depositAmount === undefined) {
@@ -71,13 +85,18 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ goal: updatedGoal })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API PATCH /goals error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to deposit funds' }, { status: 500 })
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
@@ -91,6 +110,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API DELETE /goals error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to delete goal' }, { status: 500 })
   }
 }

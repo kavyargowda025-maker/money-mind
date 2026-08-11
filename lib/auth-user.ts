@@ -8,7 +8,7 @@ export interface AppUser {
   name: string
 }
 
-export async function getCurrentUser(): Promise<AppUser> {
+export async function getCurrentUser(): Promise<AppUser | null> {
   const cookieStore = await cookies()
   const demoCookie = cookieStore.get('demo_user_id')?.value
 
@@ -18,7 +18,6 @@ export async function getCurrentUser(): Promise<AppUser> {
     const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
     if (supabaseUser && supabaseUser.email) {
-      // Atomic upsert in 1 query instead of findUnique + create
       const dbUser = await db.user.upsert({
         where: { id: supabaseUser.id },
         update: {},
@@ -61,40 +60,6 @@ export async function getCurrentUser(): Promise<AppUser> {
     }
   }
 
-  // 3. Fallback: Create a new separate guest account per unique session
-  const newGuestId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-  const newGuestEmail = `user_${Math.floor(Math.random() * 10000)}@moneymind.app`
-
-  const newGuest = await db.user.create({
-    data: {
-      id: newGuestId,
-      email: newGuestEmail,
-      name: 'Guest User',
-      settings: {
-        create: {
-          currency: '₹',
-          monthlyBudget: 50000,
-          theme: 'light',
-        },
-      },
-    },
-  })
-
-  // Set cookie for new session
-  try {
-    cookieStore.set('demo_user_id', newGuest.id, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      httpOnly: true,
-      sameSite: 'lax',
-    })
-  } catch (e) {
-    // Server component cookie warning ignorable
-  }
-
-  return {
-    id: newGuest.id,
-    email: newGuest.email,
-    name: newGuest.name || 'Guest User',
-  }
+  // Return null cleanly if no session active - NO implicit database writes on read queries
+  return null
 }
