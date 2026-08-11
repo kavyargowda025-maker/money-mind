@@ -2,47 +2,59 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { db } from '@/lib/db'
 
+import { cache } from 'react'
+
 export interface AppUser {
   id: string
   email: string
   name: string
 }
 
-export async function getCurrentUser(): Promise<AppUser> {
+export const getCurrentUser = cache(async (): Promise<AppUser> => {
   const cookieStore = await cookies()
+  const allCookies = cookieStore.getAll()
   const demoCookie = cookieStore.get('demo_user_id')?.value
 
-  // 1. Try Supabase Auth session first
-  try {
-    const supabase = createClient(cookieStore)
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+  // Check if any Supabase auth cookies exist before making external auth API call
+  const hasSupabaseAuthCookie = allCookies.some(
+    (c) => c.name.startsWith('sb-') || c.name.includes('auth-token')
+  )
 
-    if (supabaseUser && supabaseUser.email) {
-      const dbUser = await db.user.upsert({
-        where: { id: supabaseUser.id },
-        update: {},
-        create: {
-          id: supabaseUser.id,
-          email: supabaseUser.email,
-          name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
-          settings: {
-            create: {
-              currency: '₹',
-              monthlyBudget: 50000,
-              theme: 'light',
+  // 1. Try Supabase Auth session only if auth cookies are present
+  if (hasSupabaseAuthCookie) {
+    try {
+      const supabase = createClient(cookieStore)
+      const {
+        data: { user: supabaseUser },
+      } = await supabase.auth.getUser()
+
+      if (supabaseUser && supabaseUser.email) {
+        const dbUser = await db.user.upsert({
+          where: { id: supabaseUser.id },
+          update: {},
+          create: {
+            id: supabaseUser.id,
+            email: supabaseUser.email,
+            name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
+            settings: {
+              create: {
+                currency: '₹',
+                monthlyBudget: 50000,
+                theme: 'light',
+              },
             },
           },
-        },
-      })
+        })
 
-      return {
-        id: dbUser.id,
-        email: dbUser.email,
-        name: dbUser.name || dbUser.email.split('@')[0],
+        return {
+          id: dbUser.id,
+          email: dbUser.email,
+          name: dbUser.name || dbUser.email.split('@')[0],
+        }
       }
+    } catch (e) {
+      // Supabase auth fallback
     }
-  } catch (e) {
-    // Supabase auth fallback
   }
 
   // 2. Try active Demo Cookie session
@@ -60,9 +72,21 @@ export async function getCurrentUser(): Promise<AppUser> {
     }
   }
 
-  // 3. Fallback: Atomic upsert of stable guest session to guarantee active user without race conditions
+  // 3. Fallback: Fast-path findUnique check before upsert to eliminate multi-statement transaction contention
   const fallbackId = demoCookie || 'default-guest-session'
   const fallbackEmail = demoCookie ? `${demoCookie}@moneymind.app` : 'guest@moneymind.app'
+
+  const existingFallbackUser = await db.user.findUnique({
+    where: { id: fallbackId },
+  })
+
+  if (existingFallbackUser) {
+    return {
+      id: existingFallbackUser.id,
+      email: existingFallbackUser.email,
+      name: existingFallbackUser.name || 'Jordan Miller',
+    }
+  }
 
   const guestUser = await db.user.upsert({
     where: { id: fallbackId },
@@ -98,4 +122,4 @@ export async function getCurrentUser(): Promise<AppUser> {
     email: guestUser.email,
     name: guestUser.name || 'Jordan Miller',
   }
-}
+})

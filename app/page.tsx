@@ -35,20 +35,13 @@ export default function OverviewPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      const [txRes, goalsRes, settingsRes] = await Promise.all([
-        fetch('/api/transactions'),
-        fetch('/api/goals'),
-        fetch('/api/settings'),
-      ])
+      const res = await fetch('/api/dashboard')
+      const data = await res.json()
 
-      const txData = await txRes.json()
-      const goalsData = await goalsRes.json()
-      const settingsData = await settingsRes.json()
-
-      if (txData.transactions) setTransactions(txData.transactions)
-      if (goalsData.goals) setGoals(goalsData.goals)
-      if (settingsData.user) setUserName(settingsData.user.name || 'User')
-      if (settingsData.settings) setCurrency(settingsData.settings.currency || '₹')
+      if (data.transactions) setTransactions(data.transactions)
+      if (data.goals) setGoals(data.goals)
+      if (data.user) setUserName(data.user.name || 'User')
+      if (data.settings) setCurrency(data.settings.currency || '₹')
     } catch (e) {
       console.error('Failed to load dashboard data:', e)
     } finally {
