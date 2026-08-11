@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-user'
-import { db } from '@/lib/db'
+import { db, withRetry } from '@/lib/db'
 
 export async function GET() {
   try {
@@ -11,19 +11,25 @@ export async function GET() {
 
     // Fetch budgets, expense transactions, and settings in parallel
     const [budgets, transactions, userSettings] = await Promise.all([
-      db.budget.findMany({
-        where: { userId: user.id },
-        orderBy: { category: 'asc' },
-      }),
-      db.transaction.findMany({
-        where: {
-          userId: user.id,
-          type: 'EXPENSE',
-        },
-      }),
-      db.userSettings.findUnique({
-        where: { userId: user.id },
-      }),
+      withRetry(() =>
+        db.budget.findMany({
+          where: { userId: user.id },
+          orderBy: { category: 'asc' },
+        })
+      ),
+      withRetry(() =>
+        db.transaction.findMany({
+          where: {
+            userId: user.id,
+            type: 'EXPENSE',
+          },
+        })
+      ),
+      withRetry(() =>
+        db.userSettings.findUnique({
+          where: { userId: user.id },
+        })
+      ),
     ])
 
     const spendingByCategory: Record<string, number> = {}
@@ -60,22 +66,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Category and limit are required' }, { status: 400 })
     }
 
-    const budget = await db.budget.upsert({
-      where: {
-        userId_category: {
+    const budget = await withRetry(() =>
+      db.budget.upsert({
+        where: {
+          userId_category: {
+            userId: user.id,
+            category,
+          },
+        },
+        update: {
+          monthlyLimit: parseFloat(monthlyLimit),
+        },
+        create: {
           userId: user.id,
           category,
+          monthlyLimit: parseFloat(monthlyLimit),
         },
-      },
-      update: {
-        monthlyLimit: parseFloat(monthlyLimit),
-      },
-      create: {
-        userId: user.id,
-        category,
-        monthlyLimit: parseFloat(monthlyLimit),
-      },
-    })
+      })
+    )
 
     return NextResponse.json({ budget })
   } catch (error: any) {
@@ -98,9 +106,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Budget ID is required' }, { status: 400 })
     }
 
-    await db.budget.deleteMany({
-      where: { id, userId: user.id },
-    })
+    await withRetry(() =>
+      db.budget.deleteMany({
+        where: { id, userId: user.id },
+      })
+    )
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

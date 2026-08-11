@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-user'
-import { db } from '@/lib/db'
+import { db, withRetry } from '@/lib/db'
 
 export async function GET() {
   try {
@@ -16,18 +16,24 @@ export async function GET() {
     }
 
     const [transactions, goals, userSettings] = await Promise.all([
-      db.transaction.findMany({
-        where: { userId: user.id },
-        orderBy: { date: 'desc' },
-        take: 100,
-      }),
-      db.goal.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-      }),
-      db.userSettings.findUnique({
-        where: { userId: user.id },
-      }),
+      withRetry(() =>
+        db.transaction.findMany({
+          where: { userId: user.id },
+          orderBy: { date: 'desc' },
+          take: 100,
+        })
+      ),
+      withRetry(() =>
+        db.goal.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+        })
+      ),
+      withRetry(() =>
+        db.userSettings.findUnique({
+          where: { userId: user.id },
+        })
+      ),
     ])
 
     const settings = userSettings || {

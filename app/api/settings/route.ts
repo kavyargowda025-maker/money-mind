@@ -49,33 +49,32 @@ export async function POST(req: NextRequest) {
 
     const { currency, monthlyBudget, theme, name } = await req.json()
 
-    // Execute user name update and settings upsert concurrently
-    const [updatedUser, settings] = await Promise.all([
-      name
-        ? withRetry(() =>
-            db.user.update({
-              where: { id: user.id },
-              data: { name },
-            })
-          )
-        : Promise.resolve(user),
-      withRetry(() =>
-        db.userSettings.upsert({
-          where: { userId: user.id },
-          update: {
-            currency: currency !== undefined ? currency : undefined,
-            monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : undefined,
-            theme: theme || undefined,
-          },
-          create: {
-            userId: user.id,
-            currency: currency || '₹',
-            monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : 50000,
-            theme: theme || 'light',
-          },
-        })
-      ),
-    ])
+    // Execute user name update and settings upsert sequentially to avoid connection contention
+    const updatedUser = name
+      ? await withRetry(() =>
+          db.user.update({
+            where: { id: user.id },
+            data: { name },
+          })
+        )
+      : user
+
+    const settings = await withRetry(() =>
+      db.userSettings.upsert({
+        where: { userId: user.id },
+        update: {
+          currency: currency !== undefined ? currency : undefined,
+          monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : undefined,
+          theme: theme || undefined,
+        },
+        create: {
+          userId: user.id,
+          currency: currency || '₹',
+          monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : 50000,
+          theme: theme || 'light',
+        },
+      })
+    )
 
     return NextResponse.json({ user: updatedUser, settings })
   } catch (error: any) {

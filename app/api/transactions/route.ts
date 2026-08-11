@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth-user'
-import { db } from '@/lib/db'
+import { db, withRetry } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,14 +36,18 @@ export async function GET(req: NextRequest) {
     }
 
     const [transactions, userSettings] = await Promise.all([
-      db.transaction.findMany({
-        where: whereClause,
-        orderBy: { date: 'desc' },
-        take: 100,
-      }),
-      db.userSettings.findUnique({
-        where: { userId: user.id },
-      }),
+      withRetry(() =>
+        db.transaction.findMany({
+          where: whereClause,
+          orderBy: { date: 'desc' },
+          take: 100,
+        })
+      ),
+      withRetry(() =>
+        db.userSettings.findUnique({
+          where: { userId: user.id },
+        })
+      ),
     ])
 
     return NextResponse.json({
@@ -70,17 +74,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required transaction fields' }, { status: 400 })
     }
 
-    const transaction = await db.transaction.create({
-      data: {
-        userId: user.id,
-        title,
-        amount: parseFloat(amount),
-        type,
-        category,
-        date: date ? new Date(date) : new Date(),
-        description: description || null,
-      },
-    })
+    const transaction = await withRetry(() =>
+      db.transaction.create({
+        data: {
+          userId: user.id,
+          title,
+          amount: parseFloat(amount),
+          type,
+          category,
+          date: date ? new Date(date) : new Date(),
+          description: description || null,
+        },
+      })
+    )
 
     return NextResponse.json({ transaction }, { status: 201 })
   } catch (error: any) {
@@ -103,12 +109,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Transaction ID is required' }, { status: 400 })
     }
 
-    await db.transaction.deleteMany({
-      where: {
-        id,
-        userId: user.id,
-      },
-    })
+    await withRetry(() =>
+      db.transaction.deleteMany({
+        where: {
+          id,
+          userId: user.id,
+        },
+      })
+    )
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
