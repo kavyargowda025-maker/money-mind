@@ -21,9 +21,9 @@ export async function POST() {
       },
     })
 
-    // Run transaction, goal, and budget seeding concurrently for maximum performance
-    await Promise.all([
-      db.transaction.createMany({
+    // Seed transactions
+    try {
+      await db.transaction.createMany({
         data: [
           {
             userId: user.id,
@@ -53,35 +53,45 @@ export async function POST() {
             description: 'Monthly power bill',
           },
         ],
-      }),
-      db.goal.createMany({
-        data: [
-          {
-            userId: user.id,
-            title: 'Emergency Fund',
-            targetAmount: 150000,
-            currentAmount: 45000,
-            deadline: '2026-12-31',
-            color: 'bg-emerald-500',
-          },
-          {
-            userId: user.id,
-            title: 'New Laptop',
-            targetAmount: 120000,
-            currentAmount: 30000,
-            deadline: '2026-10-15',
-            color: 'bg-blue-500',
-          },
-        ],
-      }),
-      db.budget.createMany({
-        data: [
-          { userId: user.id, category: 'Food', monthlyLimit: 15000 },
-          { userId: user.id, category: 'Utilities', monthlyLimit: 5000 },
-          { userId: user.id, category: 'Shopping', monthlyLimit: 10000 },
-        ],
-      }),
-    ])
+      })
+    } catch (e) {
+      console.warn('Transaction seeding warning:', e)
+    }
+
+    // Seed goals & budgets
+    try {
+      await Promise.all([
+        db.goal.createMany({
+          data: [
+            {
+              userId: user.id,
+              title: 'Emergency Fund',
+              targetAmount: 150000,
+              currentAmount: 45000,
+              deadline: '2026-12-31',
+              color: 'bg-emerald-500',
+            },
+            {
+              userId: user.id,
+              title: 'New Laptop',
+              targetAmount: 120000,
+              currentAmount: 30000,
+              deadline: '2026-10-15',
+              color: 'bg-blue-500',
+            },
+          ],
+        }),
+        db.budget.createMany({
+          data: [
+            { userId: user.id, category: 'Food', monthlyLimit: 15000 },
+            { userId: user.id, category: 'Utilities', monthlyLimit: 5000 },
+            { userId: user.id, category: 'Shopping', monthlyLimit: 10000 },
+          ],
+        }),
+      ])
+    } catch (e) {
+      console.warn('Goals/Budgets seeding warning:', e)
+    }
 
     const response = NextResponse.json({ success: true, user })
     response.cookies.set('demo_user_id', user.id, {
