@@ -8,7 +8,7 @@ export interface AppUser {
   name: string
 }
 
-export async function getCurrentUser(): Promise<AppUser | null> {
+export async function getCurrentUser(): Promise<AppUser> {
   const cookieStore = await cookies()
   const demoCookie = cookieStore.get('demo_user_id')?.value
 
@@ -60,6 +60,42 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     }
   }
 
-  // Return null cleanly if no session active - NO implicit database writes on read queries
-  return null
+  // 3. Fallback: Atomic upsert of stable guest session to guarantee active user without race conditions
+  const fallbackId = demoCookie || 'default-guest-session'
+  const fallbackEmail = demoCookie ? `${demoCookie}@moneymind.app` : 'guest@moneymind.app'
+
+  const guestUser = await db.user.upsert({
+    where: { id: fallbackId },
+    update: {},
+    create: {
+      id: fallbackId,
+      email: fallbackEmail,
+      name: 'Jordan Miller',
+      settings: {
+        create: {
+          currency: '₹',
+          monthlyBudget: 50000,
+          theme: 'light',
+        },
+      },
+    },
+  })
+
+  // Set cookie for session persistence
+  try {
+    cookieStore.set('demo_user_id', guestUser.id, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      httpOnly: true,
+      sameSite: 'lax',
+    })
+  } catch (e) {
+    // Server component cookie set warning ignorable
+  }
+
+  return {
+    id: guestUser.id,
+    email: guestUser.email,
+    name: guestUser.name || 'Jordan Miller',
+  }
 }
