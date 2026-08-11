@@ -18,36 +18,28 @@ export async function getCurrentUser(): Promise<AppUser> {
     const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
     if (supabaseUser && supabaseUser.email) {
-      const existingUser = await db.user.findUnique({
+      // Atomic upsert in 1 query instead of findUnique + create
+      const dbUser = await db.user.upsert({
         where: { id: supabaseUser.id },
-      })
-
-      if (!existingUser) {
-        const newUser = await db.user.create({
-          data: {
-            id: supabaseUser.id,
-            email: supabaseUser.email,
-            name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
-            settings: {
-              create: {
-                currency: '₹',
-                monthlyBudget: 50000,
-                theme: 'light',
-              },
+        update: {},
+        create: {
+          id: supabaseUser.id,
+          email: supabaseUser.email,
+          name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
+          settings: {
+            create: {
+              currency: '₹',
+              monthlyBudget: 50000,
+              theme: 'light',
             },
           },
-        })
-        return {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name || newUser.email.split('@')[0],
-        }
-      }
+        },
+      })
 
       return {
-        id: existingUser.id,
-        email: existingUser.email,
-        name: existingUser.name || existingUser.email.split('@')[0],
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name || dbUser.email.split('@')[0],
       }
     }
   } catch (e) {
@@ -69,7 +61,7 @@ export async function getCurrentUser(): Promise<AppUser> {
     }
   }
 
-  // 3. Fallback: Generate a new separate guest account per unique session
+  // 3. Fallback: Create a new separate guest account per unique session
   const newGuestId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
   const newGuestEmail = `user_${Math.floor(Math.random() * 10000)}@moneymind.app`
 
@@ -97,7 +89,7 @@ export async function getCurrentUser(): Promise<AppUser> {
       sameSite: 'lax',
     })
   } catch (e) {
-    // Server component cookie set warning ignorable
+    // Server component cookie warning ignorable
   }
 
   return {
