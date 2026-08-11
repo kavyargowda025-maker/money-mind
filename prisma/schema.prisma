@@ -1,8 +1,74 @@
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../lib/prisma-client"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+  budgets      Budget[]
+  goals        Goal[]
+  settings     UserSettings?
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  amount      Float
+  type        String   // "INCOME" | "EXPENSE"
+  category    String
+  date        DateTime @default(now())
+  description String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Budget {
+  id           String   @id @default(uuid())
+  userId       String
+  category     String
+  monthlyLimit Float
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+}
+
+model Goal {
+  id            String   @id @default(uuid())
+  userId        String
+  title         String
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  deadline      String?
+  color         String?  @default("bg-primary")
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  currency      String   @default("₹")
+  monthlyBudget Float    @default(50000)
+  theme         String   @default("light")
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
