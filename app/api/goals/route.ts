@@ -9,12 +9,20 @@ export async function GET() {
       return NextResponse.json({ goals: [], unauthenticated: true })
     }
 
-    const goals = await db.goal.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-    })
+    const [goals, userSettings] = await Promise.all([
+      db.goal.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.userSettings.findUnique({
+        where: { userId: user.id },
+      }),
+    ])
 
-    return NextResponse.json({ goals })
+    return NextResponse.json({
+      goals,
+      currency: userSettings?.currency || '₹',
+    })
   } catch (error: any) {
     console.error('API GET /goals error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to fetch goals' }, { status: 500 })

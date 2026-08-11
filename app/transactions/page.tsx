@@ -31,16 +31,11 @@ export default function TransactionsPage() {
       if (typeFilter !== 'ALL') params.append('type', typeFilter)
       if (categoryFilter !== 'ALL') params.append('category', categoryFilter)
 
-      const [txRes, settingsRes] = await Promise.all([
-        fetch(`/api/transactions?${params.toString()}`),
-        fetch('/api/settings'),
-      ])
+      const res = await fetch(`/api/transactions?${params.toString()}`)
+      const data = await res.json()
 
-      const txData = await txRes.json()
-      const settingsData = await settingsRes.json()
-
-      if (txData.transactions) setTransactions(txData.transactions)
-      if (settingsData.settings) setCurrency(settingsData.settings.currency || '₹')
+      if (data.transactions) setTransactions(data.transactions)
+      if (data.currency) setCurrency(data.currency)
     } catch (err) {
       console.error('Failed to fetch transactions:', err)
     } finally {

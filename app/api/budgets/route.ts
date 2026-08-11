@@ -9,8 +9,8 @@ export async function GET() {
       return NextResponse.json({ budgets: [], spendingByCategory: {}, unauthenticated: true })
     }
 
-    // Fetch budgets and expense transactions in parallel
-    const [budgets, transactions] = await Promise.all([
+    // Fetch budgets, expense transactions, and settings in parallel
+    const [budgets, transactions, userSettings] = await Promise.all([
       db.budget.findMany({
         where: { userId: user.id },
         orderBy: { category: 'asc' },
@@ -20,6 +20,9 @@ export async function GET() {
           userId: user.id,
           type: 'EXPENSE',
         },
+      }),
+      db.userSettings.findUnique({
+        where: { userId: user.id },
       }),
     ])
 
@@ -33,7 +36,11 @@ export async function GET() {
       spent: spendingByCategory[b.category] || 0,
     }))
 
-    return NextResponse.json({ budgets: result, spendingByCategory })
+    return NextResponse.json({
+      budgets: result,
+      spendingByCategory,
+      currency: userSettings?.currency || '₹',
+    })
   } catch (error: any) {
     console.error('API GET /budgets error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to fetch budgets' }, { status: 500 })

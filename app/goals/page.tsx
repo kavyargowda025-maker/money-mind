@@ -34,15 +34,11 @@ export default function GoalsPage() {
   const fetchGoals = useCallback(async () => {
     try {
       setLoading(true)
-      const [gRes, sRes] = await Promise.all([
-        fetch('/api/goals'),
-        fetch('/api/settings'),
-      ])
-      const gData = await gRes.json()
-      const sData = await sRes.json()
+      const res = await fetch('/api/goals')
+      const data = await res.json()
 
-      if (gData.goals) setGoals(gData.goals)
-      if (sData.settings) setCurrency(sData.settings.currency || '₹')
+      if (data.goals) setGoals(data.goals)
+      if (data.currency) setCurrency(data.currency)
     } catch (e) {
       console.error('Failed to load goals:', e)
     } finally {

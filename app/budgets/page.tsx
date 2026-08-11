@@ -25,15 +25,11 @@ export default function BudgetsPage() {
   const fetchBudgets = useCallback(async () => {
     try {
       setLoading(true)
-      const [bRes, sRes] = await Promise.all([
-        fetch('/api/budgets'),
-        fetch('/api/settings'),
-      ])
-      const bData = await bRes.json()
-      const sData = await sRes.json()
+      const res = await fetch('/api/budgets')
+      const data = await res.json()
 
-      if (bData.budgets) setBudgets(bData.budgets)
-      if (sData.settings) setCurrency(sData.settings.currency || '₹')
+      if (data.budgets) setBudgets(data.budgets)
+      if (data.currency) setCurrency(data.currency)
     } catch (e) {
       console.error('Failed to load budgets:', e)
     } finally {

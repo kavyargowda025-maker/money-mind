@@ -35,13 +35,21 @@ export async function GET(req: NextRequest) {
       whereClause.type = type
     }
 
-    const transactions = await db.transaction.findMany({
-      where: whereClause,
-      orderBy: { date: 'desc' },
-      take: 100,
-    })
+    const [transactions, userSettings] = await Promise.all([
+      db.transaction.findMany({
+        where: whereClause,
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+      db.userSettings.findUnique({
+        where: { userId: user.id },
+      }),
+    ])
 
-    return NextResponse.json({ transactions })
+    return NextResponse.json({
+      transactions,
+      currency: userSettings?.currency || '₹',
+    })
   } catch (error: any) {
     console.error('API GET /transactions error:', error)
     return NextResponse.json({ error: error?.message || 'Failed to fetch transactions' }, { status: 500 })
