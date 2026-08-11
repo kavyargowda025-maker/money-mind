@@ -5,18 +5,20 @@ import { db } from '@/lib/db'
 export async function GET() {
   try {
     const user = await getCurrentUser()
-    const budgets = await db.budget.findMany({
-      where: { userId: user.id },
-      orderBy: { category: 'asc' },
-    })
 
-    // Compute actual spending per category for current user
-    const transactions = await db.transaction.findMany({
-      where: {
-        userId: user.id,
-        type: 'EXPENSE',
-      },
-    })
+    // Fetch budgets and expense transactions in parallel
+    const [budgets, transactions] = await Promise.all([
+      db.budget.findMany({
+        where: { userId: user.id },
+        orderBy: { category: 'asc' },
+      }),
+      db.transaction.findMany({
+        where: {
+          userId: user.id,
+          type: 'EXPENSE',
+        },
+      }),
+    ])
 
     const spendingByCategory: Record<string, number> = {}
     transactions.forEach((tx) => {
@@ -30,7 +32,8 @@ export async function GET() {
 
     return NextResponse.json({ budgets: result, spendingByCategory })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API GET /budgets error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to fetch budgets' }, { status: 500 })
   }
 }
 
@@ -62,7 +65,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ budget })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API POST /budgets error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to save budget' }, { status: 500 })
   }
 }
 
@@ -82,6 +86,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('API DELETE /budgets error:', error)
+    return NextResponse.json({ error: error?.message || 'Failed to delete budget' }, { status: 500 })
   }
 }

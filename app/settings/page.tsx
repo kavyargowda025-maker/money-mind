@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Check, User, Globe, Wallet } from 'lucide-react'
+import { Loader2, Check, User, Globe } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [currency, setCurrency] = useState('₹')
@@ -48,15 +50,17 @@ export default function SettingsPage() {
         }),
       })
 
+      const data = await res.json()
+
       if (!res.ok) {
-        const data = await res.json()
         throw new Error(data.error || 'Failed to save settings')
       }
 
       setSavedSuccess(true)
+      router.refresh()
       setTimeout(() => setSavedSuccess(false), 3000)
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || 'Operation timed out or database unavailable.')
     } finally {
       setSaving(false)
     }
@@ -78,22 +82,26 @@ export default function SettingsPage() {
       </div>
 
       {savedSuccess && (
-        <div className="mb-6 flex items-center gap-2 rounded-xl bg-emerald-500/10 p-4 text-sm font-medium text-emerald-600 border border-emerald-500/20">
+        <div className="mb-6 flex items-center gap-2 rounded-xl bg-emerald-500/10 p-4 text-sm font-medium text-emerald-600 border border-emerald-500/20 animate-in fade-in duration-200">
           <Check className="size-4" />
           Settings saved successfully!
         </div>
       )}
 
-      {error && <div className="mb-6 rounded-xl bg-destructive/10 p-4 text-sm text-destructive border border-destructive/20">{error}</div>}
+      {error && (
+        <div className="mb-6 rounded-xl bg-destructive/10 p-4 text-sm text-destructive border border-destructive/20 animate-in fade-in duration-200">
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="flex flex-col gap-6">
         {/* Profile Card */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
           <div className="flex items-center gap-3 border-b border-border pb-4">
             <User className="size-5 text-primary" />
             <div>
               <h2 className="text-base font-semibold">User Profile</h2>
-              <p className="text-xs text-muted-foreground">Update your display name and details</p>
+              <p className="text-xs text-muted-foreground">Update your display name and personal details</p>
             </div>
           </div>
 
@@ -104,7 +112,7 @@ export default function SettingsPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring focus:ring-2"
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring transition-all focus:ring-2"
                 placeholder="Jordan Miller"
               />
             </label>
@@ -122,7 +130,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Currency & Financial Preferences */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
           <div className="flex items-center gap-3 border-b border-border pb-4">
             <Globe className="size-5 text-primary" />
             <div>
@@ -137,7 +145,7 @@ export default function SettingsPage() {
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring focus:ring-2"
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring transition-all focus:ring-2"
               >
                 <option value="₹">₹ (INR - Rupee)</option>
                 <option value="$">$ (USD - Dollar)</option>
@@ -155,7 +163,7 @@ export default function SettingsPage() {
                 step="0.01"
                 value={monthlyBudget}
                 onChange={(e) => setMonthlyBudget(e.target.value)}
-                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring focus:ring-2"
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-normal outline-none ring-ring transition-all focus:ring-2"
                 placeholder="50000"
               />
             </label>
@@ -166,7 +174,7 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
           >
             {saving ? (
               <>
