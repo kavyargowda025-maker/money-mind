@@ -49,12 +49,14 @@ export async function POST(req: NextRequest) {
 
     const { currency, monthlyBudget, theme, name } = await req.json()
 
+    const cleanName = typeof name === 'string' ? name.trim() : undefined
+
     // Execute user name update and settings upsert sequentially to avoid connection contention
-    const updatedUser = name
+    const updatedUser = cleanName !== undefined
       ? await withRetry(() =>
           db.user.update({
             where: { id: user.id },
-            data: { name },
+            data: { name: cleanName },
           })
         )
       : user

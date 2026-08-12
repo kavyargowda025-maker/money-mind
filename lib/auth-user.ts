@@ -62,18 +62,22 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
 
   // 2. Try active Demo Cookie session
   if (demoCookie) {
-    const existingDemoUser = await withRetry(() =>
-      db.user.findUnique({
-        where: { id: demoCookie },
-      })
-    )
+    try {
+      const existingDemoUser = await withRetry(() =>
+        db.user.findUnique({
+          where: { id: demoCookie },
+        })
+      )
 
-    if (existingDemoUser) {
-      return {
-        id: existingDemoUser.id,
-        email: existingDemoUser.email,
-        name: existingDemoUser.name || 'Demo User',
+      if (existingDemoUser) {
+        return {
+          id: existingDemoUser.id,
+          email: existingDemoUser.email,
+          name: existingDemoUser.name || 'Demo User',
+        }
       }
+    } catch (e) {
+      console.warn('[auth-user] Error reading demoCookie user, falling through:', e)
     }
   }
 
@@ -81,18 +85,22 @@ export const getCurrentUser = cache(async (): Promise<AppUser> => {
   const fallbackId = demoCookie || 'default-guest-session'
   const fallbackEmail = demoCookie ? `${demoCookie}@moneymind.app` : 'guest@moneymind.app'
 
-  const existingFallbackUser = await withRetry(() =>
-    db.user.findUnique({
-      where: { id: fallbackId },
-    })
-  )
+  try {
+    const existingFallbackUser = await withRetry(() =>
+      db.user.findUnique({
+        where: { id: fallbackId },
+      })
+    )
 
-  if (existingFallbackUser) {
-    return {
-      id: existingFallbackUser.id,
-      email: existingFallbackUser.email,
-      name: existingFallbackUser.name || 'Jordan Miller',
+    if (existingFallbackUser) {
+      return {
+        id: existingFallbackUser.id,
+        email: existingFallbackUser.email,
+        name: existingFallbackUser.name || 'Jordan Miller',
+      }
     }
+  } catch (e) {
+    console.warn('[auth-user] Error reading fallback user:', e)
   }
 
   const guestUser = await withRetry(() =>
